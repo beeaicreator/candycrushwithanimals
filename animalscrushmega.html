@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animal Crush - Level Up Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .tile {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .tile:hover {
+            transform: scale(1.1);
+        }
+        
+        .tile.selected {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            transform: scale(1.1);
+        }
+        
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            border-radius: 50%;
+            animation: confetti-fall 2s linear forwards;
+        }
+        
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(500px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        .explosion {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            animation: explode 0.5s ease-out forwards;
+            pointer-events: none;
+        }
+        
+        @keyframes explode {
+            0% {
+                transform: scale(0.1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+        
+        .animal-emoji {
+            font-size: 2rem;
+            animation: bounce 1s infinite;
+        }
+        
+        .falling {
+            animation: fall 0.5s ease-in;
+        }
+        
+        @keyframes fall {
+            0% { transform: translateY(-100px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        
+        .shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .wow-text {
+            position: absolute;
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            animation: wow-animation 1.5s ease-out forwards;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        @keyframes wow-animation {
+            0% {
+                transform: scale(0.1) rotate(-20deg);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2) rotate(10deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5) rotate(0deg);
+                opacity: 0;
+            }
+        }
+        
+        .level-up {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-purple-100 to-pink-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-purple-600 mb-2">Animal Crush Mega</h1>
+            <p class="text-xl text-purple-400">Match animals to complete levels!</p>
+        </header>
+        
+        <div class="flex justify-between items-center mb-6">
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold text-purple-600">Level: <span id="level" class="text-pink-500">1</span></h2>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold text-purple-600">Score: <span id="score" class="text-pink-500">0</span>/<span id="target-score" class="text-pink-500">500</span></h2>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold text-purple-600">Moves: <span id="moves" class="text-pink-500">20</span></h2>
+            </div>
+            <button id="reset-btn" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-6 rounded-full transition-all transform hover:scale-105">
+                New Game
+            </button>
+        </div>
+        
+        <div class="progress-bar w-full max-w-2xl mx-auto mb-6">
+            <div id="progress" class="progress" style="width: 0%"></div>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-xl p-6 mx-auto" style="max-width: 700px;">
+            <div id="game-board" class="grid grid-cols-8 gap-2"></div>
+        </div>
+        
+        <div class="mt-8 text-center">
+            <div class="inline-block bg-white rounded-lg shadow-lg p-4">
+                <h3 class="text-lg font-semibold text-purple-600 mb-2">How to Play</h3>
+                <p class="text-purple-400">Match 3+ animals to score points. Complete the target score before moves run out to level up!</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="level-up-screen" class="level-up hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md">
+            <h2 class="text-4xl font-bold text-purple-600 mb-4">Level Complete!</h2>
+            <p class="text-xl text-gray-700 mb-6">You reached the target score!</p>
+            <button id="next-level-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl transition-all transform hover:scale-105">
+                Next Level
+            </button>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="level-up hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md">
+            <h2 class="text-4xl font-bold text-purple-600 mb-4">Game Over</h2>
+            <p class="text-xl text-gray-700 mb-2">You ran out of moves!</p>
+            <p class="text-lg text-gray-600 mb-6">Your score: <span id="final-score" class="font-bold">0</span></p>
+            <button id="restart-btn" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 px-8 rounded-full text-xl transition-all transform hover:scale-105">
+                Try Again
+            </button>
+        </div>
+    </div>
+
+    <audio id="wow-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3" preload="auto"></audio>
+    <audio id="match-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" preload="auto"></audio>
+    <audio id="swap-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-quick-jump-arcade-game-239.mp3" preload="auto"></audio>
+    <audio id="level-up-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-unlock-game-notification-253.mp3" preload="auto"></audio>
+    <audio id="game-over-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-retro-arcade-lose-2027.mp3" preload="auto"></audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const boardSize = 8;
+            const animals = ['🐶', '🐱', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🐷', '🐸', '🐵', '🦁'];
+            let board = [];
+            let selectedTile = null;
+            let score = 0;
+            let moves = 20;
+            let currentLevel = 1;
+            let targetScore = 500;
+            let isAnimating = false;
+            let maxRetries = 10;
+            
+            const gameBoard = document.getElementById('game-board');
+            const scoreDisplay = document.getElementById('score');
+            const movesDisplay = document.getElementById('moves');
+            const targetScoreDisplay = document.getElementById('target-score');
+            const levelDisplay = document.getElementById('level');
+            const progressBar = document.getElementById('progress');
+            const resetBtn = document.getElementById('reset-btn');
+            const levelUpScreen = document.getElementById('level-up-screen');
+            const gameOverScreen = document.getElementById('game-over-screen');
+            const nextLevelBtn = document.getElementById('next-level-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const finalScoreDisplay = document.getElementById('final-score');
+            
+            const wowSound = document.getElementById('wow-sound');
+            const matchSound = document.getElementById('match-sound');
+            const swapSound = document.getElementById('swap-sound');
+            const levelUpSound = document.getElementById('level-up-sound');
+            const gameOverSound = document.getElementById('game-over-sound');
+            
+            // Initialize game
+            initGame();
+            
+            function initGame() {
+                score = 0;
+                moves = getMovesForLevel(currentLevel);
+                targetScore = getTargetScoreForLevel(currentLevel);
+                
+                scoreDisplay.textContent = score;
+                movesDisplay.textContent = moves;
+                targetScoreDisplay.textContent = targetScore;
+                levelDisplay.textContent = currentLevel;
+                updateProgressBar();
+                
+                createValidBoard();
+                renderBoard();
+                
+                levelUpScreen.classList.add('hidden');
+                gameOverScreen.classList.add('hidden');
+            }
+            
+            function getMovesForLevel(level) {
+                // Decrease moves as level increases to make it harder
+                return Math.max(15, 30 - Math.floor(level / 2) * 5);
+            }
+            
+            function getTargetScoreForLevel(level) {
+                // Increase target score as level increases
+                return 500 + (level - 1) * 300;
+            }
+            
+            function updateProgressBar() {
+                const progress = Math.min(100, (score / targetScore) * 100);
+                progressBar.style.width = `${progress}%`;
+            }
+            
+            function createValidBoard() {
+                let validBoard = false;
+                let attempts = 0;
+                
+                while (!validBoard && attempts < maxRetries) {
+                    createBoard();
+                    if (hasPossibleMoves()) {
+                        validBoard = true;
+                    }
+                    attempts++;
+                }
+                
+                if (!validBoard) {
+                    shuffleBoardUntilValid();
+                }
+            }
+            
+            function createBoard() {
+                board = [];
+                for (let row = 0; row < boardSize; row++) {
+                    board[row] = [];
+                    for (let col = 0; col < boardSize; col++) {
+                        board[row][col] = getRandomAnimal();
+                    }
+                }
+            }
+            
+            function shuffleBoardUntilValid() {
+                let attempts = 0;
+                while (!hasPossibleMoves() && attempts < maxRetries * 2) {
+                    const row1 = Math.floor(Math.random() * boardSize);
+                    const col1 = Math.floor(Math.random() * boardSize);
+                    const row2 = Math.floor(Math.random() * boardSize);
+                    const col2 = Math.floor(Math.random() * boardSize);
+                    
+                    if (areAdjacent(row1, col1, row2, col2)) {
+                        const temp = board[row1][col1];
+                        board[row1][col1] = board[row2][col2];
+                        board[row2][col2] = temp;
+                    }
+                    
+                    attempts++;
+                }
+                
+                if (!hasPossibleMoves()) {
+                    createBoard();
+                }
+            }
+            
+            function getRandomAnimal() {
+                return animals[Math.floor(Math.random() * animals.length)];
+            }
+            
+            function renderBoard() {
+                gameBoard.innerHTML = '';
+                
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize; col++) {
+                        const tile = document.createElement('div');
+                        tile.className = 'tile bg-white rounded-lg flex items-center justify-center h-16 w-16 shadow-md';
+                        tile.dataset.row = row;
+                        tile.dataset.col = col;
+                        
+                        const emoji = document.createElement('span');
+                        emoji.className = 'animal-emoji';
+                        emoji.textContent = board[row][col];
+                        tile.appendChild(emoji);
+                        
+                        tile.addEventListener('click', () => handleTileClick(row, col, tile));
+                        
+                        gameBoard.appendChild(tile);
+                    }
+                }
+            }
+            
+            function handleTileClick(row, col, tile) {
+                if (isAnimating || moves <= 0) return;
+                
+                if (!selectedTile) {
+                    selectedTile = { row, col, element: tile };
+                    tile.classList.add('selected');
+                    swapSound.currentTime = 0;
+                    swapSound.play();
+                } else {
+                    const firstTile = selectedTile;
+                    
+                    if (areAdjacent(firstTile.row, firstTile.col, row, col)) {
+                        swapTiles(firstTile.row, firstTile.col, row, col);
+                        
+                        const matches = checkMatches();
+                        
+                        if (matches.length > 0) {
+                            moves--;
+                            movesDisplay.textContent = moves;
+                            processMatches(matches);
+                        } else {
+                            tile.classList.add('shake');
+                            firstTile.element.classList.add('shake');
+                            
+                            setTimeout(() => {
+                                swapTiles(firstTile.row, firstTile.col, row, col);
+                                firstTile.element.classList.remove('selected', 'shake');
+                                tile.classList.remove('shake');
+                                selectedTile = null;
+                                
+                                if (!hasPossibleMoves()) {
+                                    shuffleBoardUntilValid();
+                                    renderBoard();
+                                }
+                                
+                                checkGameStatus();
+                            }, 500);
+                        }
+                    } else {
+                        firstTile.element.classList.remove('selected');
+                        selectedTile = { row, col, element: tile };
+                        tile.classList.add('selected');
+                        swapSound.currentTime = 0;
+                        swapSound.play();
+                    }
+                }
+            }
+            
+            function areAdjacent(row1, col1, row2, col2) {
+                return (
+                    (Math.abs(row1 - row2) === 1 && col1 === col2) ||
+                    (Math.abs(col1 - col2) === 1 && row1 === row2)
+                );
+            }
+            
+            function swapTiles(row1, col1, row2, col2) {
+                isAnimating = true;
+                
+                if (selectedTile) {
+                    selectedTile.element.classList.remove('selected');
+                    selectedTile = null;
+                }
+                
+                const temp = board[row1][col1];
+                board[row1][col1] = board[row2][col2];
+                board[row2][col2] = temp;
+                
+                renderBoard();
+                
+                setTimeout(() => {
+                    isAnimating = false;
+                }, 300);
+            }
+            
+            function checkMatches() {
+                const matches = [];
+                const matchedPositions = new Set();
+                
+                // Horizontal matches
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize - 2; col++) {
+                        if (
+                            board[row][col] === board[row][col + 1] &&
+                            board[row][col] === board[row][col + 2]
+                        ) {
+                            const match = [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }];
+                            
+                            let offset = 3;
+                            while (col + offset < boardSize && board[row][col] === board[row][col + offset]) {
+                                match.push({ row, col: col + offset });
+                                offset++;
+                            }
+                            
+                            const newPositions = match.filter(pos => 
+                                !matchedPositions.has(`${pos.row},${pos.col}`)
+                            );
+                            
+                            if (newPositions.length > 0) {
+                                matches.push(match);
+                                match.forEach(pos => matchedPositions.add(`${pos.row},${pos.col}`));
+                            }
+                        }
+                    }
+                }
+                
+                // Vertical matches
+                for (let col = 0; col < boardSize; col++) {
+                    for (let row = 0; row < boardSize - 2; row++) {
+                        if (
+                            board[row][col] === board[row + 1][col] &&
+                            board[row][col] === board[row + 2][col]
+                        ) {
+                            const match = [{ row, col }, { row: row + 1, col }, { row: row + 2, col }];
+                            
+                            let offset = 3;
+                            while (row + offset < boardSize && board[row][col] === board[row + offset][col]) {
+                                match.push({ row: row + offset, col });
+                                offset++;
+                            }
+                            
+                            const newPositions = match.filter(pos => 
+                                !matchedPositions.has(`${pos.row},${pos.col}`)
+                            );
+                            
+                            if (newPositions.length > 0) {
+                                matches.push(match);
+                                match.forEach(pos => matchedPositions.add(`${pos.row},${pos.col}`));
+                            }
+                        }
+                    }
+                }
+                
+                return matches;
+            }
+            
+            function processMatches(matches) {
+                isAnimating = true;
+                matchSound.currentTime = 0;
+                matchSound.play();
+                
+                matches.forEach(match => {
+                    const points = match.length * 10;
+                    score += points;
+                    scoreDisplay.textContent = score;
+                    updateProgressBar();
+                    
+                    // Play wow sound for big matches
+                    if (match.length >= 4) {
+                        setTimeout(() => {
+                            wowSound.currentTime = 0;
+                            wowSound.play();
+                            createWowText(match);
+                        }, 300);
+                    }
+                    
+                    match.forEach(({ row, col }) => {
+                        const tile = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                        if (tile) {
+                            createExplosion(tile);
+                        }
+                    });
+                });
+                
+                setTimeout(() => {
+                    const matchedPositions = matches.flat();
+                    
+                    for (let col = 0; col < boardSize; col++) {
+                        let emptyRow = boardSize - 1;
+                        
+                        for (let row = boardSize - 1; row >= 0; row--) {
+                            const isMatched = matchedPositions.some(pos => pos.row === row && pos.col === col);
+                            
+                            if (!isMatched) {
+                                board[emptyRow][col] = board[row][col];
+                                if (emptyRow !== row) {
+                                    board[row][col] = null;
+                                }
+                                emptyRow--;
+                            }
+                        }
+                        
+                        for (let row = emptyRow; row >= 0; row--) {
+                            board[row][col] = getRandomAnimal();
+                        }
+                    }
+                    
+                    renderBoardWithFallingAnimation();
+                    
+                    setTimeout(() => {
+                        const newMatches = checkMatches();
+                        if (newMatches.length > 0) {
+                            processMatches(newMatches);
+                        } else {
+                            isAnimating = false;
+                            
+                            if (!hasPossibleMoves()) {
+                                shuffleBoardUntilValid();
+                                renderBoard();
+                            }
+                            
+                            checkGameStatus();
+                        }
+                    }, 500);
+                }, 1000);
+            }
+            
+            function checkGameStatus() {
+                if (score >= targetScore) {
+                    levelUp();
+                } else if (moves <= 0) {
+                    gameOver();
+                }
+            }
+            
+            function levelUp() {
+                isAnimating = true;
+                levelUpSound.currentTime = 0;
+                levelUpSound.play();
+                
+                setTimeout(() => {
+                    levelUpScreen.classList.remove('hidden');
+                }, 1000);
+            }
+            
+            function gameOver() {
+                isAnimating = true;
+                gameOverSound.currentTime = 0;
+                gameOverSound.play();
+                
+                setTimeout(() => {
+                    finalScoreDisplay.textContent = score;
+                    gameOverScreen.classList.remove('hidden');
+                }, 1000);
+            }
+            
+            function createWowText(match) {
+                const firstTile = document.querySelector(`[data-row="${match[0].row}"][data-col="${match[0].col}"]`);
+                if (firstTile) {
+                    const rect = firstTile.getBoundingClientRect();
+                    const wow = document.createElement('div');
+                    wow.className = 'wow-text';
+                    wow.textContent = 'WOW!';
+                    wow.style.left = `${rect.left - 50}px`;
+                    wow.style.top = `${rect.top - 50}px`;
+                    document.body.appendChild(wow);
+                    
+                    setTimeout(() => {
+                        wow.remove();
+                    }, 1500);
+                }
+            }
+            
+            function renderBoardWithFallingAnimation() {
+                gameBoard.innerHTML = '';
+                
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize; col++) {
+                        const tile = document.createElement('div');
+                        tile.className = 'tile bg-white rounded-lg flex items-center justify-center h-16 w-16 shadow-md';
+                        tile.dataset.row = row;
+                        tile.dataset.col = col;
+                        
+                        if (row > 0 && board[row][col] !== board[row-1][col]) {
+                            tile.classList.add('falling');
+                        }
+                        
+                        const emoji = document.createElement('span');
+                        emoji.className = 'animal-emoji';
+                        emoji.textContent = board[row][col];
+                        tile.appendChild(emoji);
+                        
+                        tile.addEventListener('click', () => handleTileClick(row, col, tile));
+                        
+                        gameBoard.appendChild(tile);
+                    }
+                }
+            }
+            
+            function createExplosion(tile) {
+                const rect = tile.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                const explosion = document.createElement('div');
+                explosion.className = 'explosion';
+                explosion.style.left = `${centerX - 75}px`;
+                explosion.style.top = `${centerY - 75}px`;
+                document.body.appendChild(explosion);
+                
+                for (let i = 0; i < 30; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = `${centerX - 5}px`;
+                    confetti.style.top = `${centerY - 5}px`;
+                    confetti.style.backgroundColor = getRandomColor();
+                    document.body.appendChild(confetti);
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    const velocity = 2 + Math.random() * 3;
+                    const x = Math.cos(angle) * velocity;
+                    const y = Math.sin(angle) * velocity;
+                    
+                    confetti.style.transform = `translate(${x * 20}px, ${y * 20}px)`;
+                }
+                
+                setTimeout(() => {
+                    explosion.remove();
+                    document.querySelectorAll('.confetti').forEach(el => el.remove());
+                }, 2000);
+            }
+            
+            function getRandomColor() {
+                const colors = ['#FF5252', '#FF4081', '#E040FB', '#7C4DFF', '#536DFE', '#448AFF', '#40C4FF', '#18FFFF', '#64FFDA', '#69F0AE', '#B2FF59', '#EEFF41', '#FFFF00', '#FFD740', '#FFAB40', '#FF6E40'];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            function hasPossibleMoves() {
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize; col++) {
+                        if (col < boardSize - 1) {
+                            const temp = board[row][col];
+                            board[row][col] = board[row][col+1];
+                            board[row][col+1] = temp;
+                            
+                            const matches = checkMatches();
+                            
+                            board[row][col+1] = board[row][col];
+                            board[row][col] = temp;
+                            
+                            if (matches.length > 0) {
+                                return true;
+                            }
+                        }
+                        
+                        if (row < boardSize - 1) {
+                            const temp = board[row][col];
+                            board[row][col] = board[row+1][col];
+                            board[row+1][col] = temp;
+                            
+                            const matches = checkMatches();
+                            
+                            board[row+1][col] = board[row][col];
+                            board[row][col] = temp;
+                            
+                            if (matches.length > 0) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                return false;
+            }
+            
+            resetBtn.addEventListener('click', () => {
+                currentLevel = 1;
+                initGame();
+            });
+            
+            nextLevelBtn.addEventListener('click', () => {
+                currentLevel++;
+                initGame();
+            });
+            
+            restartBtn.addEventListener('click', () => {
+                currentLevel = 1;
+                initGame();
+            });
+        });
+    </script>
+</body>
+</html>
